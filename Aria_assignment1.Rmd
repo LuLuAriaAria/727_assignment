@@ -1,0 +1,160 @@
+---
+title: "Aria_assignment1"
+author: "Aria"
+date: "2023-09-13"
+output: 
+  html_document: 
+    toc: yes
+---
+
+## Part1:Reading data:
+### 1.2. Read in the .dta version and store in an object called angell_stata.
+```{r}
+library("haven")
+angell_stata <- read_dta("angell.dta")
+```
+
+### 1.3. Read in the .txt version and store it in an object called angell_txt.
+```{r}
+angell_txt <- read.table("angell.txt", header = F, sep = "")
+```
+
+### 1.4. What are the differences between angell_stata and angell_txt? Are there differences in the classes of the individual columns?
+DTA files store structured data along with metadata, making them suitable for storing datasets with variables, labels, and data types. In `angell_dta`, we notice that every variable has its variable name. However, in TXT files, since TXT files do not include any built-in structure, and they are essentially just sequences of characters separated by delimiters, variable names are not included.
+
+### 1.5. Make any updates necessary so that `angell_txt` is the same as `angell_stata`.
+```{r}
+library("dplyr")
+angell_txt <- angell_txt %>% rename(city = V1, morint = V2, 
+                                     ethhet = V3, geomob = V4, region = V5)
+```
+
+### 1.6. Describe the Ethnic Heterogeneity variable. Use descriptive statistics such as mean, median, standard deviation, etc. How does it differ by region?
+#### 1.6.1. descriptive statistics
+```{r}
+ethhet_describe <- function(x, na.omit = FALSE){
+  if (na.omit)
+  x <- x[!is.na(x)]
+  eth_mean = mean(x)
+  eth_median = median(x)
+  eth_sd = sd(x)
+  n = length(x)
+  return(c(mean = eth_mean, median = eth_median, sd = eth_sd, n = n))
+}
+ethhet <- c("ethhet")
+describe_stat <- sapply(angell_stata[ethhet], ethhet_describe)
+describe_stat
+
+describe_stat <- t(describe_stat)
+describe_stat <- as.data.frame(describe_stat)
+describe_stat
+```
+
+#### 1.6.2. How does it differ by region?
+```{r}
+as.factor(angell_stata$region)
+describe_stat_group <- angell_stata %>% group_by(region) %>% 
+                                    summarise(mean_group = mean(ethhet),
+                                              median_group = median(ethhet),
+                                              sd_group = sd(ethhet),
+                                              )
+describe_stat_group
+
+```
+If visualize it, that will be:
+```{r}
+plot_box <- boxplot(ethhet ~ region, data = angell_stata)
+```
+
+If we want to compare the differences in statistics between different regions, ANOVA is a good choice.Therefore, we need to check that if the variance is subject to normal distribution and the variance homogeneity.   
+Histogram and Q-Q Plot are intuitive methods to verify the distribution:
+```{r}
+
+par(mfrow = c(1,2))
+
+res_aov <- aov(ethhet ~ region,
+  data = angell_stata
+)
+
+plot_hist <- hist(res_aov$residuals)
+
+library(car)
+plot_norm <- qqPlot(res_aov$residuals)
+
+```
+
+
+From the histogram and QQ-plot above, we can already see that the normality assumption seems to be met. Indeed, the histogram roughly form a bell curve, indicating that the residuals follow a normal distribution. Furthermore, points in the QQ-plots roughly follow the straight line and most of them are within the confidence bands, also indicating that residuals follow approximately a normal distribution.  
+To be conservative, we could also test the normality assumption via a normality test.  
+
+$H_0$:data come from a normal distribution  
+$H_1$:data doesn't come from a normal distribution   
+```{r}
+
+shapiro.test(res_aov$residuals)
+```
+We notice that p-value = 0.35 >0.05, so we do not reject the hypothesis that residuals follow a normal distribution.  
+The next step is to test the variance homogeneity.  
+```{r}
+library("lattice")
+
+dotplot(ethhet ~ region,
+  data = angell_stata
+)
+```
+
+
+Obviously, the dispersion is more or less not the same between the different regions. Based on this, we assume that the variance of different groups is not subject to the hypothesis of variance homogeneity. To verify this assumption, we could utilize Levene test:  
+$H_0$: variances are equal  
+$H_1$: at least one variance is different
+```{r}
+leveneTest(ethhet ~ region,
+  data = angell_stata
+)
+```
+P = 0.00 < 0.05, indicating that we should reject the null hypothesis, and the variance between different groups are different.  
+To summarize, since the variable is subject to normal distribution but it is not subject to variance homogeneity, we choose Welch ANOVA:  
+```{r}
+ANOVA_eth <- oneway.test(ethhet ~ region,
+  data = angell_stata,
+  var.equal = FALSE
+)
+ANOVA_eth
+```
+p - value = 0.00 < 0.05, indicating that the Ethnic Heterogeneity is different among regions.
+
+
+## Part2: Describing Data
+### 2.7. Install the “MASS” package, load the package. Then, load the Boston dataset.
+```{r}
+install.packages("MASS")
+library("MASS")
+Boston <- MASS::Boston 
+```
+
+### 2.8. What is the type of the Boston object?
+
+```{r}
+typeof(Boston)
+```
+
+
+### 2.9.What is the class of the Boston object?
+
+```{r}
+class(Boston)
+```
+
+### 2.10 How many of the suburbs in the Boston data set bound the Charles river?
+
+```{r}
+by_river <- sum(Boston$chas)
+by_river
+```
+
+### 2.11. Do any of the suburbs of Boston appear to have particularly high crime rates? Tax rates? Pupil-teacher ratios? Comment on the range of each variable.
+
+```{r}
+variable_boston <- Boston[c("crim","tax","ptratio")]
+head(variable_boston)
+```
