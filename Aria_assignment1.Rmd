@@ -127,7 +127,7 @@ p - value = 0.00 < 0.05, indicating that the Ethnic Heterogeneity is different a
 ## Part2: Describing Data
 ### 2.7. Install the “MASS” package, load the package. Then, load the Boston dataset.
 ```{r}
-install.packages("MASS")
+
 library("MASS")
 Boston <- MASS::Boston 
 ```
@@ -156,5 +156,151 @@ by_river
 
 ```{r}
 variable_boston <- Boston[c("crim","tax","ptratio")]
-head(variable_boston)
+table_var_range <- variable_boston %>% 
+                    apply(2,summary) %>% 
+                    t() %>% 
+                  as_tibble() %>% 
+                  mutate(
+                    range = paste0("[", Min., ",", Max., "]")
+                  )
+table_var_range <- as.data.frame(table_var_range)
+table_var_range$name <- c("crim","tax","ptratio")
+
+table_var_range <- table_var_range[c("name","range")]
+table_var_range
 ```
+
+### 2.12. Describe the distribution of pupil-teacher ratio among the towns in this data set that have a per capita crime rate larger than 1. How does it differ from towns that have a per capita crime rate smaller than 1?
+
+```{r}
+ptratio_1 <- dplyr::filter(Boston, Boston$crim > 1)
+ptratio_2 <- dplyr::filter(Boston, Boston$crim < 1)
+
+Boston_new <- mutate(Boston, group = ifelse(crim>1,1,0))
+
+```
+
+Visualization:
+```{r}
+library(ggplot2)
+
+histplot1 <- ggplot(ptratio_1, aes(ptratio)) + 
+                geom_histogram(binwidth = 0.6)
+
+histplot1
+
+histplot2 <- ggplot(ptratio_2, aes(ptratio)) + 
+                geom_histogram(binwidth = 0.6)
+
+histplot2
+
+```
+
+Descriptive statistics:
+
+```{r}
+ptratio_describe <- function(x, na.omit = FALSE){
+  if (na.omit)
+  x <- x[!is.na(x)]
+  ptr_mean = mean(x)
+  ptr_median = median(x)
+  ptr_sd = sd(x)
+  n = length(x)
+  return(c(mean = ptr_mean, median = ptr_median, sd = ptr_sd, n = n))
+}
+
+describe_stat_ptr1 <- sapply(ptratio_1["ptratio"], ptratio_describe)
+describe_stat_ptr2 <- sapply(ptratio_2["ptratio"], ptratio_describe)
+
+describe_stat_ptr1 <- as.data.frame(describe_stat_ptr1)
+describe_stat_ptr2 <- as.data.frame(describe_stat_ptr2)
+
+ptratio_crime <- cbind(describe_stat_ptr1, describe_stat_ptr2)
+colnames(ptratio_crime) <- c("crime_higher","crime_lower")
+
+ptratio_crime
+
+```
+
+In order to compare two groups, we need to check the distribution and variance of data:
+```{r}
+shapiro.test(ptratio_1$ptratio)
+shapiro.test(ptratio_2$ptratio)
+
+res.ftest <- var.test(ptratio ~ group, data = Boston_new)
+res.ftest
+```
+
+In shapiro test, p < 0.05, so we could conclude that two groups are not subject to normal distribution. In F-test, p > 0.05, therefore, we choose non parametric two sample Wilcoxon rank test:
+```{r}
+res <- wilcox.test(ptratio ~ group, data = Boston_new, var.equal = TRUE)
+res
+```
+
+p < 0.05, therefore, the pupil-teacher ratio between two groups are significantly different.
+
+## Part3. Writing functions
+### 3.13. Write a function that calculates 95% confidence intervals for a point estimate. The function should be called my_CI. When called with my_CI(2, 0.2), the function should print out “The 95% CI upper bound of point estimate 2 with standard error 0.2 is 2.392. The lower bound is 1.608.”
+```{r}
+
+my_CI <- function(x, y){
+  CI_upper <- x + 1.96*y
+  CI_lower <- x - 1.96*y
+  res_CI <- paste0("The 95% CI upper bound of point estimate",x,
+                   "with standard error",CI_upper,".",
+                   "The lower bound is",CI_lower,".")
+  return(res_CI)
+}
+my_CI(2,0.2)
+```
+
+### 3.14.Create a new function called my_CI2 that does that same thing as the my_CI function but outputs a vector of length 2 with the lower and upper bound of the confidence interval instead of printing out the text. Use this to find the 95% confidence interval for a point estimate of 0 and standard error 0.4.
+```{r}
+my_CI2 <- function(x,y){
+    CI_upper_2 <- x + 1.96*y
+    CI_lower_2 <- x - 1.96*y
+    res_CI_2 <- c(CI_lower_2,CI_upper_2)
+    return(res_CI_2)
+}
+```
+
+### 3.15. Update the my_CI2 function to take any confidence level instead of only 95%. Call the new function my_CI3. You should add an argument to your function for confidence level.
+```{r}
+
+my_CI3 <- function(x,y,alpha){
+  alpha <- qnorm(1-alpha/2)
+  CI_upper_3 <- x + alpha * y
+  CI_lower_3 <- x - alpha * y
+  res_CI_3 <- c(CI_lower_3,CI_upper_3)
+    return(res_CI_3)
+}
+```
+ 
+### 3.16. Without hardcoding any numbers in the code, find a 99% confidence interval for Ethnic Heterogeneity in the Angell dataset. Find the standard error by dividing the standard deviation by the square root of the sample size.
+```{r}
+
+CI_lower_4 <- t.test(angell_stata$ethhet,conf = 0.99)$conf.int[1]
+CI_upper_4 <- t.test(angell_stata$ethhet,conf = 0.99)$conf.int[2]
+res_CI_4 <- c(CI_lower_4,CI_upper_4)
+res_CI_4
+
+se <- sd(angell_stata$ethhet)/sqrt(length(angell_stata$ethhet))
+se
+
+```
+
+### 3.17. Write a function that you can apply to the Angell dataset to get 95% confidence intervals. The function should take one argument: a vector. Use if-else statements to output NA and avoid error messages if the column in the data frame is not numeric or logical.
+```{r}
+my_CI5 <- function(x){
+  if (is.character(x) == TRUE){
+    print("NA")
+  } else {
+    my_CI_lower_5 <- t.test(x,conf=0.95)$conf.int[1]
+    my_CI_upper_5 <- t.test(x,conf=0.95)$conf.int[2]
+    res_CI_5 <- c(my_CI_lower_5,my_CI_upper_5)
+    return(res_CI_5)
+  }
+}
+
+```
+
