@@ -6,6 +6,10 @@ output:
   html_document: 
     toc: yes
 ---
+## Part0:
+
+GitHub:
+https://github.com/LuLuAriaAria/727_assignment.git
 
 ## Part1:Reading data:
 ### 1.2. Read in the .dta version and store in an object called angell_stata.
