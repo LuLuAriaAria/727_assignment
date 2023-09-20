@@ -142,3 +142,37 @@ stargazer(res_reg, type = "html")
 
 For every unit increase in the crime rate, the average house price will decrease by 0.415 units.
 
+### E. Calculate the coefficients reported in D as well as their standard errors by hand.
+Considering:
+
+$cov(X,Y) = \frac{(x_i-\bar{x})(y_i-\bar{y})}{N}$
+
+```{r}
+cov_reg <- function(data,colname1,colname2){
+    i= 1
+    for(i in seq_along({{data$colname1}})){
+      x <- {{data$colname1}}[[i]]-mean({{data$colname1}})
+    }
+    for(j in seq_along({{data$colname2}})){
+      y <- {{data$colname2}}[[j]]-mean({{data$colname2}})
+    } 
+    cov <- x*y/length(data)
+    return(cov)
+}
+
+cov_reg(Boston,medv,crim)
+
+```
+
+### F. Create a scatter plot of the crime rates and the median home values with a regression line. Is the regression line a good summary of the crime rates? Examine residuals to assess this.
+```{r}
+scat_plot_reg <- Boston %>%
+                ggplot(aes(crim,medv)) +
+                geom_point(size = 1, colour = 4, alpha = 0.7) +
+                stat_smooth(method = "lm",
+                            formula = medv ~ crim,
+                           geom = "smooth")
+scat_plot_reg
+```
+
+### G. Create a scatter plot of predicted crim and residuals. What do you observe?
