@@ -6,36 +6,40 @@ output:
   html_document: 
     toc: yes
 ---
-### 0.The required packages are:
-```{r}
+
+### 0.0. The required packages are:
+```{r,message=FALSE}
 library("MASS")
 library("stargazer")
 library("tidyverse")
 ```
 
+#### 0.1. In order to give a tider table, we could do some adjustments:
+```{r}
+format.summaryDefault <- function(sum.res, varname) {
+  format.sum.res <- data.frame(
+    var = varname
+  )
+  sum.res.names <- names(sum.res)
+  sum.res.values <- unname(sum.res)
+  for (i in 1:length(sum.res)) {
+    name <- sum.res.names[i]
+    value <- sum.res.values[i]
+    format.sum.res[[name]] <- value
+  }
+  format.sum.res %>%
+    knitr::kable()
+}
+```
+
 ### A.Examine crim with summary() and in a histogram.
 ```{r,results='asis'}
 Boston <- MASS::Boston
-sum <- summary(Boston$crim)
-sum
-```
-
-```{r,results='hide'}
-
-output <- Boston[c("crim")] %>% stargazer(type = "html",column.sep.width = "20pt")
-
-```
-
-```{r,results='asis'}
-
-# A tidier format could be:
-output[2] <- stringr::str_replace(
-  output[2], 
-  "text-align:center", 
-  "text-align:center; width:100%;"
-)
-cat(output)
-
+sum_crim <- Boston$crim %>%
+            summary() %>%
+            format.summaryDefault("crim")
+sum_crim
+            
 ```
 
 Visualization:
@@ -54,38 +58,38 @@ his_plot
 ### B. Focus on suburbs with the crime rate above 25.  
 #### How many suburbs fall into this group?  
 ```{r}
-suburbs_25 <- Boston %>%
-                filter(crim > 25) %>%
-                length()
-suburbs_25
+Boston %>%
+      filter(crim > 25) %>%
+      dim() -> dims
+dims[1]
 ```
-Therefore, there are 14 suburbs fall into the group whose crime rate is above 25.
+Therefore, there are `r dims[1]` suburbs fall into the group whose crime rate is above 25.
 
 #### What are the pupil-teacher ratios like in those suburbs?  
+
 ```{r}
-pt_ratio <- Boston %>%
-                filter(crim > 25) %>%
-                select(ptratio) %>%
-                summary(ptratio)
-pt_ratio
+Boston.crimlt25 <- Boston %>%
+  filter(crim > 25)
+```
+
+```{r}
+Boston.crimlt25$ptratio %>%
+  summary() %>%
+  format.summaryDefault("ptratio")
 ```
 
 #### How about property tax rates?  
 ```{r}
-prpt_rates <- Boston %>%
-                filter(crim > 25) %>%
-                select(tax) %>%
-                summary("tax")
-prpt_rates
+Boston.crimlt25$tax %>%
+  summary() %>%
+  format.summaryDefault("tax")
 ```
 
 #### How about median home values? 
 ```{r}
-medv <- Boston %>%
-                filter(crim > 25) %>%
-                select(medv) %>%
-                summary("medv")
-medv
+Boston.crimlt25$medv %>%
+  summary() %>%
+  format.summaryDefault("medv")
 ```
 
 #### How do the pupil-teacher ratios, property tax rates and median home values compare between these suburbs and the remaining suburbs?
@@ -100,7 +104,7 @@ ptratio_new <- Boston_new %>%
 # weird: why all values in ptratio are identical?
 ```
 
-### C. Create a scatter plot of the _crime rates_ and the _median home values_ for. 
+### C. Create a scatter plot of the `crime rates` and the `median home values` for. 
 #### 1) all suburbs,  
 
 ```{r}
@@ -131,38 +135,118 @@ scat_plot_ncr
 
 #### What do you observe?
 ```{r}
-# How to combine these plots together?
+
+ggpubr::ggarrange(
+  scat_plot_all,
+  scat_plot_cr,
+  scat_plot_ncr
+)
+
+# add title for each plot
+
 ```
 
 ### D. Analyze the crime rates as a function of median home values in a simple linear regression with an intercept. Report what the regression coefficients mean in lay terms.
-```{r,results='asis'}
+```{r,results='hide'}
 res_reg <- lm(data = Boston, medv~crim)
-stargazer(res_reg, type = "html")
+output <- stargazer(res_reg, type = "html")
+```
+
+```{r,results='asis'}
+# A tidier format could be:
+output[2] <- stringr::str_replace(
+  output[2], 
+  "text-align:center", 
+  "text-align:center; width:100%;"
+)
+cat(output)
 ```
 
 For every unit increase in the crime rate, the average house price will decrease by 0.415 units.
 
 ### E. Calculate the coefficients reported in D as well as their standard errors by hand.
+#### E-1. coefficients:
+
 Considering:
 
-$cov(X,Y) = \frac{(x_i-\bar{x})(y_i-\bar{y})}{N}$
+$$cov(X,Y) = \frac{\sum_i^N(x_i-\bar{x})(y_i-\bar{y})}{N-1}$$
 
 ```{r}
 cov_reg <- function(data,colname1,colname2){
-    i= 1
-    for(i in seq_along({{data$colname1}})){
-      x <- {{data$colname1}}[[i]]-mean({{data$colname1}})
-    }
-    for(j in seq_along({{data$colname2}})){
-      y <- {{data$colname2}}[[j]]-mean({{data$colname2}})
-    } 
-    cov <- x*y/length(data)
-    return(cov)
+        N <- dim(data)[1]
+          mean_1 <- mean(data[[colname1]])
+          mean_2 <- mean(data[[colname2]])
+        pair_sum <- 0
+        for(i in 1:N){
+          pair_sum <- pair_sum + (data[i,colname1]-mean_1)* (data[i,colname2]-mean_2)
+        }
+        cov <- pair_sum/(N-1)
+        return(cov)
 }
 
-cov_reg(Boston,medv,crim)
-
 ```
+
+Considering:
+$$Var(X) = \frac{\sum(x_i-\bar{x})^2}{n-1}$$
+```{r}
+var_reg <- function(data,colname){
+  n <- dim(data)[1]
+  var_mean <- mean(data[[colname]])
+  var_sum <- 0
+  for(i in 1:n){
+    var_sum <- var_sum +(data[i,colname]-var_mean)^2
+  }
+    var_x <- var_sum/(n-1)
+    return(var_x)
+}
+var_reg(Boston,"crim")
+var(Boston$crim)
+```
+Since coefficient is calculated by:
+$$\beta_1 = \frac{Cov(X_i,Y_i)}{Var(X_i)}$$
+```{r}
+beta1 <- cov_reg(Boston,"crim","medv")/var_reg(Boston,"crim")
+beta1
+```
+
+#### E-2. Standard error:
+
+Considering the formula of uni-variate linear regression model is:
+$$y_i = \beta_0 + \beta_1x_i+\epsilon_i$$
+Therefore, $\hat{y_i}$ is:
+$$\hat{y_i} = y - \beta_1x$$
+
+and:
+
+$$s(b_1) = \sqrt{\frac{1}{n-2}*\frac{\sum(y_i-\hat{y_i})^2}{\sum(x_i-\bar{x})^2}}$$
+where:
+
+$n$: total sample size
+$y_i$: actual value of response variable
+$\hat{y_i}$: predicted value of response variable
+$x_i$: actual value of predictor variable
+$\bar{x}$: mean value of predictor variable
+
+So we could have the function like:
+```{r}
+sb1 <- function(data,x,y){
+  n <- dim(data)[1]
+  haty <- data[[y]]-cov_reg(data,x,y)/var_reg(data,x)*data[[x]]
+  residual_y_sum = 0
+  residual_x_sum = 0
+  mean_x <- mean(data[[x]])
+  for(i in 1:n){
+    residual_y_sum <- residual_y_sum + (data[i,y]-haty[i])^2
+    residual_x_sum <- residual_x_sum + (data[i,x]-mean_x)^2
+  }
+  s <- sqrt((1/(n-2))*(residual_y_sum/residual_x_sum))
+  return(s)
+}
+
+sb <- sb1(Boston,"crim","medv")
+sb
+```
+Therefore, we could know that the standard error of coefficient is 0.02
 
 ### F. Create a scatter plot of the crime rates and the median home values with a regression line. Is the regression line a good summary of the crime rates? Examine residuals to assess this.
 ```{r}
@@ -170,7 +254,7 @@ scat_plot_reg <- Boston %>%
                 ggplot(aes(crim,medv)) +
                 geom_point(size = 1, colour = 4, alpha = 0.7) +
                 stat_smooth(method = "lm",
-                            formula = medv ~ crim,
+                            formula = y ~ x,
                            geom = "smooth")
 scat_plot_reg
 ```
