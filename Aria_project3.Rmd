@@ -109,7 +109,7 @@ ptratio_new <- Boston_new %>%
 
 ```{r}
 scat_plot_all <- Boston %>%
-                ggplot(aes(x = crim, y = medv)) +
+                ggplot(aes(x = medv, y = crim)) +
                 geom_point(size = 1, colour = 2, alpha = 0.7) 
 scat_plot_all
                   
@@ -119,7 +119,7 @@ scat_plot_all
 ```{r}
 scat_plot_cr <- Boston %>%
                 filter(chas == 1) %>%
-                ggplot(aes(x = crim, y = medv)) +
+                ggplot(aes(x = medv, y = crim)) +
                 geom_point(size = 1, colour = 3, alpha = 0.7) 
 scat_plot_cr
 ```
@@ -128,7 +128,7 @@ scat_plot_cr
 ```{r}
 scat_plot_ncr <- Boston %>%
                 filter(chas == 0) %>%
-                ggplot(aes(x = crim, y = medv)) +
+                ggplot(aes(x = medv, y = crim)) +
                 geom_point(size = 1, colour = 4, alpha = 0.7) 
 scat_plot_ncr
 ```
@@ -142,13 +142,19 @@ ggpubr::ggarrange(
   scat_plot_ncr
 )
 
+scat_plot_group <- Boston %>%
+                   ggplot(aes(x = medv, y = crim, colour = factor(chas))) +
+                   geom_point(size = 1, alpha = 0.5)+
+                   labs(colour = "chas")
+scat_plot_group
+
 # add title for each plot
 
 ```
 
 ### D. Analyze the crime rates as a function of median home values in a simple linear regression with an intercept. Report what the regression coefficients mean in lay terms.
 ```{r,results='hide'}
-res_reg <- lm(data = Boston, medv~crim)
+res_reg <- lm(data = Boston, crim~medv)
 output <- stargazer(res_reg, type = "html")
 ```
 
@@ -199,13 +205,13 @@ var_reg <- function(data,colname){
     var_x <- var_sum/(n-1)
     return(var_x)
 }
-var_reg(Boston,"crim")
-var(Boston$crim)
+var_reg(Boston,"medv")
+var(Boston$medv)
 ```
 Since coefficient is calculated by:
 $$\beta_1 = \frac{Cov(X_i,Y_i)}{Var(X_i)}$$
 ```{r}
-beta1 <- cov_reg(Boston,"crim","medv")/var_reg(Boston,"crim")
+beta1 <- cov_reg(Boston,"medv","crim")/var_reg(Boston,"medv")
 beta1
 ```
 
@@ -243,12 +249,12 @@ sb1 <- function(data,x,y){
   return(s)
 }
 
-sb <- sb1(Boston,"crim","medv")
+sb <- sb1(Boston,"medv","crim")
 sb
 ```
 Therefore, we could know that the standard error of coefficient is 0.02
 
-### F. Create a scatter plot of the crime rates and the median home values with a regression line. Is the regression line a good summary of the crime rates? Examine residuals to assess this.
+### F-1. Create a scatter plot of the crime rates and the median home values with a regression line. 
 ```{r}
 scat_plot_reg <- Boston %>%
                 ggplot(aes(crim,medv)) +
@@ -257,6 +263,26 @@ scat_plot_reg <- Boston %>%
                             formula = y ~ x,
                            geom = "smooth")
 scat_plot_reg
+
 ```
+#### F-2. Is the regression line a good summary of the crime rates? Examine residuals to assess this.
+Since the residual plot helps us to determine the relationship between `$x$` and `$y$` variables. If residuals are randomly distributed (no pattern) around the zero line, it indicates that there linear relationship between the `$x$` and `$y$` (assumption of linearity). If there is a curved pattern, it means that there is no linear relationship and data is not appropriate for regression analysis. Therefore, we could have a residuals plot firstly:
+```{r}
+df1 <- data.frame(fitted(res_reg),resid(res_reg))
+residual_plot <- ggplot(df1, aes(fitted.res_reg., resid.res_reg.)) +
+            geom_point(size = 0.5, colour = 2, alpha = 0.7) +
+            geom_hline(yintercept = 0, colour =2)
+residual_plot
+```
+Obviously, the scatter points are not distributed randomly. Most points are concentrated on the left, especially on the rightmost vertical line. So we could infer that the regression line is not a good summary of the crime rates. 
 
 ### G. Create a scatter plot of predicted crim and residuals. What do you observe?
+```{r}
+p <- Boston %>%
+  ggplot(aes(medv, crim)) +
+  geom_point(size = 0.5, colour = 2, alpha = 0.5) +
+  geom_smooth(method = "lm", se = T, formula = y ~ x, colour = 2) 
+
+p
+```
+
