@@ -1,0 +1,158 @@
+---
+title: "Aria_Yuya_Project4"
+author: "Aria"
+date: "2023-09-26"
+output: 
+  html_document: 
+    toc: yes
+---
+### 0. Load the required package:
+```{r}
+library(MASS)
+library(stringr)
+library(stargazer)
+```
+
+### 1.Examine medv as a function of `crim`, `zn` and `indus` in a multiple linear regression.
+```{r}
+Boston <- MASS::Boston
+reg <- lm(medv ~ crim + zn + indus, data = Boston)
+```
+
+### A.Identify predictors significant at 5% level.
+```{r}
+summary(reg)
+```
+
+From the table, we can see that p-value of crim is less than 2e-16, p-value of zn is 0.000889, and of indus is 1.77e-10, all of these values are less than 0.05.
+
+### B.List the hypotheses tested in 1.A and their conclusions.
+
+Null Hypothesis ($H_0$): The null hypothesis states that there is no relationship between the feature (independent / predictor variable, refers to crim, zn, and indus here) and the dependent / response variable(medv). In terms of coefficients, it suggests that the coefficient of the feature is equal to zero.
+
+Alternative Hypothesis ($H_1$): The alternative hypothesis contradicts the null hypothesis and suggests that there is a relationship between the feature and the dependent variable. It implies that the coefficient of the feature is not equal to zero.
+
+Conclusions: Coefficients of predictors are not equal to zero, which means there is a statistically significant correlation between predictors and dependent variable.
+
+### C.What do the estimated regression coefficients in 1.A mean in lay terms? Do
+they make sense?
+-1 crim: While keeping other predictors constant, when crime rate increases a unit, the median home values would decrease 0.248 units.
+-2 zn: While keeping other predictors constant, when the proportion of residential land zoned increases a unit, the median home values would increase 0.05 units.
+-3 indus: While keeping other predictors constant, when the proportion of non-retail business acres per town increases a unit, the median home values would decrease 0.415 units.
+
+### D.Construct 95% confidence intervals for βcrim, βzn and βindus. How do the
+confidence intervals correspond to 1.A and 1.B?
+
+```{r}
+CI_reg <- confint(reg)
+CI_reg
+```
+Therefore, the fitted $\beta_{crim}$ is -0.24 with an interval of (-0.33,-0.16); the fitted $\beta_{zn}$ is 0.05 with an interval of (0.024,0.0928); the fitted $\beta_{indus}$ is -0.415 with an interval of (-0.54,-0.29).
+
+### E.Calculate the R^2 and R^2adj by hand and report whether this matches the R^2
+and R^2adj from the output and whey mean?
+
+Since the formula for r-squared is:
+$$R^2 = 1-\frac{sum\ squared\ regression\ (SSR) }{total\ sum\ of\ squares\ (SST)}$$
+Or:
+$$R^2 = 1-\frac{\sum(y_i-\hat{y_i})^2}{\sum(y_i-\bar{y})^2}$$
+
+Where:
+$\hat{y_i}$: predicted value of response variable,formula is:
+$$\hat{y_i}=\beta_0+\beta_1x_{i,1}+\beta_2x_{i,2}+...+\beta_{p-1}x_{i,p-1}$$
+$y_i$: actual value of response variable
+$\bar{y}$: mean value of response variable
+Or:
+$$\hat{y_i}=X\beta$$
+So if we want to calculate R^2, we need to calculate $\hat{y_i}$ first. Coefficient $\beta$ could be derived from the following process:
+
+As was the case with simple regression, we want to minimize the sum of the squared errors,$\epsilon$. In matrix notation, the OLS model is $y = \beta X+e$, where $e = y-X\beta$. The sum of the squared $e$ is:
+$$
+\sum{e_i}^2=[e_1\ \ \ e_2\ \ \ ...\ \ \ e_n]
+\begin{bmatrix}
+e_1 \\
+e_2 \\ 
+. \\ 
+. \\
+. \\
+e_n
+\end{bmatrix} = e'e
+$$
+Therefore, we want to find the$\beta$ that minimizes this function:
+$$
+e'e=(y-X\beta)'(y-X\beta) \\
+=y'y-\beta'X'y-y'X\beta+\beta X'X \beta \\
+=y'y-2\beta'X'y+\beta'X'X\beta
+$$
+To do this we take the derivative of $e'e$ w.r.t $\beta$ and set it equal to 0:
+$$\frac{\delta e'e}{\delta \beta}=-2X'y+2X'X\beta=0$$
+Therefore, 
+$$\beta = {(X'X)}^{-1}X'y$$
+Calculate $\beta$:
+```{r}
+
+data_x <- Boston %>%
+          select("zn","indus") %>%
+          as.matrix()
+
+data_y <- Boston %>%
+          select("medv") %>%
+          as.matrix()
+
+X = data_x
+y = data_y
+beta = solve(t(X) %*% X )  %*% t(X) %*% y
+
+```
+
+So $\hat{y_i}$ could be represented as:
+```{r}
+haty = X %*% beta
+```
+
+$R^2$ is:
+$$R^2 = 1-\frac{\sum(y_i-\hat{y_i})^2}{\sum(y_i-\bar{y})^2}$$
+```{r}
+
+numerator <- function(data,y) {
+  n = dim(data)[1]
+  sum_y1 = 0
+  for(i in 1:n){
+    sum_y1 <- sum_y1 + (data[i,y] - haty[i])^2
+  }
+  return(sum_y1)
+}
+num_y <- numerator(Boston,"medv")
+
+mean_y <- mean(Boston$medv)
+
+denominator <- function(data,y) {
+  n = dim(data)[1]
+  sum_y2 = 0
+  for (i in 1:n){
+    sum_y2 <- sum_y2 + (data[i,y] - mean_y)^2
+  }
+  return(sum_y2)
+}
+
+deno_y <- denominator(Boston,"medv")
+
+R2 <- 1- num_y/deno_y
+R2
+
+```
+
+The formula of $R^2_{adjusted}$ is:
+$$R^2_{adjusted}=1-\frac{(1-R^2)(n-1)}{n-p-1}$$
+where:
+$p$:number of predictors
+$n$:total sample size
+
+### 2.Compare the model from #1 and a simple linear regression of medv as a function of zn. Which would you prefer?
+```{r}
+reg2 <- lm(medv ~ zn, data = Boston)
+summary(reg2)
+summary(reg)
+```
+
+I prefer model from #1. Since the r-squared is 0.293, larger than the counterpart in simple linear regression (0.1299), which means model 1 could interpret more variances of y. 
